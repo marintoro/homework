@@ -336,9 +336,9 @@ def train_PG(exp_name='',
 
         # YOUR_CODE_HERE
         if not reward_to_go:
-            q_n = np.concatenate([np.sum([path[i]*(gamma)**i for i in range(len(path))])*np.ones(len(path)) for path in paths])
+            q_n = np.concatenate([np.sum([path["reward"][i]*(gamma)**i for i in range(len(path))])*np.ones(len(path)) for path in paths])
         else:
-            q_n = np.concatenate([[np.sum([path[t_prime] * (gamma) ** (t_prime - t) for t_prime in range(t,len(path))]) for t in range(len(path))] for path in paths])
+            q_n = np.concatenate([[np.sum([path["reward"][t_prime] * (gamma) ** (t_prime - t) for t_prime in range(t,len(path))]) for t in range(len(path))] for path in paths])
 
 
 
