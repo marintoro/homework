@@ -168,7 +168,7 @@ def train_PG(exp_name='',
     #      policy network output ops.
     #   
     #========================================================================================#
-
+    # print("discrete =", discrete)
     if discrete:
         # YOUR_CODE_HERE
         # Compute proba for each action
@@ -178,7 +178,7 @@ def train_PG(exp_name='',
         sy_sampled_ac = tf.multinomial(sy_logits_na, 1)
         sy_sampled_ac = tf.reshape(sy_sampled_ac, [-1])
 
-        # Likelihood of chosen action
+        # Likelihood of all taken actions
         sy_logprob_n = -tf.nn.sparse_softmax_cross_entropy_with_logits(
             labels=sy_ac_na, logits=sy_logits_na)
 
@@ -188,19 +188,24 @@ def train_PG(exp_name='',
         sy_logstd = tf.Variable(tf.zeros([1, ac_dim]), name="policy_continuous/logstd", dtype=tf.float32)
         sy_std = tf.exp(sy_logstd)
 
-        sy_sampled_ac = tf.random_normal([None, ac_dim], mean=sy_mean, stddev=sy_std)
+        sy_sampled_ac = tf.random_normal(shape=tf.shape(sy_mean), mean=sy_mean, stddev=sy_std)
+
+        sy_logprob_n = tf.contrib.distributions.MultivariateNormalDiag(loc=sy_mean,
+                                                                       scale_diag=tf.exp(sy_logstd)).log_prob(
+            sy_ac_na)  # Hint: Use the log probability under a multivariate gaussian.
 
         sy_z = (sy_ac_na - sy_mean) / sy_std
-        sy_logprob_n = -0.5 * tf.reduce_sum(tf.square(sy_z), axis=1)
+        sy_logprob_n_wrong = -0.5 * tf.reduce_sum(tf.square(sy_z), axis=1)
 
-
+        print("sy_logprob_n", sy_logprob_n)
+        print("sy_logprob_n_wrong", sy_logprob_n_wrong)
 
     #========================================================================================#
     #                           ----------SECTION 4----------
     # Loss Function and Training Operation
     #========================================================================================#
 
-    loss = tf.reduce_mean(sy_logprob_n*sy_adv_n) # Loss function that we'll differentiate to get the policy gradient.
+    loss = -tf.reduce_mean(sy_logprob_n*sy_adv_n) # Loss function that we'll differentiate to get the policy gradient.
     learning_rate_placeholder = tf.placeholder(tf.float32, [], name='learning_rate')
     update_op = tf.train.AdamOptimizer(learning_rate_placeholder).minimize(loss)
 
@@ -336,9 +341,9 @@ def train_PG(exp_name='',
 
         # YOUR_CODE_HERE
         if not reward_to_go:
-            q_n = np.concatenate([np.sum([path["reward"][i]*(gamma)**i for i in range(len(path))])*np.ones(len(path)) for path in paths])
+            q_n = np.concatenate([np.sum([path["reward"][i]*(gamma)**i for i in range(len(path["reward"]))])*np.ones(len(path["reward"])) for path in paths])
         else:
-            q_n = np.concatenate([[np.sum([path["reward"][t_prime] * (gamma) ** (t_prime - t) for t_prime in range(t,len(path))]) for t in range(len(path))] for path in paths])
+            q_n = np.concatenate([[np.sum([path["reward"][t_prime] * (gamma) ** (t_prime - t) for t_prime in range(t,len(path["reward"]))]) for t in range(len(path["reward"]))] for path in paths])
 
 
 
@@ -370,7 +375,7 @@ def train_PG(exp_name='',
             # On the next line, implement a trick which is known empirically to reduce variance
             # in policy gradient methods: normalize adv_n to have mean zero and std=1. 
             # YOUR_CODE_HERE
-            std_adv_n = np.std(adv_n)
+            std_adv_n = np.std(adv_n) + 1e-07
             adv_n = (adv_n - np.mean(adv_n))/std_adv_n
 
             pass
@@ -407,11 +412,13 @@ def train_PG(exp_name='',
 
         # YOUR_CODE_HERE
         if normalize_advantages:
-            new_learning_rate = learning_rate / std_adv_n
+            print("old std_adv_n = ", std_adv_n)
+            # print("new std_adv_n = ", np.std(adv_n))
+            new_learning_rate = learning_rate #It looks like it's better to keep the same learning rate even with normliaztion / std_adv_n
         else:
             new_learning_rate = learning_rate
 
-        sess.run([update_op], feed_dict={sy_ob_no : ob_no, sy_ac_na : ac_na, learning_rate_placeholder : new_learning_rate})
+        sess.run([update_op], feed_dict={sy_ob_no : ob_no, sy_ac_na : ac_na, sy_adv_n : adv_n, learning_rate_placeholder : new_learning_rate})
 
         # Log diagnostics
         returns = [path["reward"].sum() for path in paths]
