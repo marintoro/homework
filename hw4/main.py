@@ -23,6 +23,26 @@ def sample(env,
         Each path can have elements for observations, next_observations, rewards, returns, actions, etc.
     """
     paths = []
+    for path_num in range(num_paths):
+        observations = []
+        next_observations = []
+        rewards = []
+        actions = []
+        ob = env.reset()
+        for num_step in range(horizon):
+            observations.append(ob)
+            action = controller.get_action(ob)
+            actions.append(action)
+            ob, rew, done, _ = env.step(action)
+            rewards.append(rew)
+            next_observations.append(ob)
+
+        path = {"observations": np.array(observations),
+                "rewards": np.array(rewards),
+                "actions": np.array(actions),
+                "next_observations": np.array(next_observations)}
+        paths.append(path)
+
     """ YOUR CODE HERE """
 
     return paths
@@ -36,9 +56,18 @@ def compute_normalization(data):
     Write a function to take in a dataset and compute the means, and stds.
     Return 6 elements: mean of s_t, std of s_t, mean of (s_t+1 - s_t), std of (s_t+1 - s_t), mean of actions, std of actions
     """
+    observations = np.concatenate([path['observations'] for path in data])
+    actions = np.concatenate([path['actions'] for path in data])
+    deltas = np.concatenate([path['next_observations'] - path['observations'] for path in data])
 
+    mean_obs = np.mean(observations, axis=1)
+    std_obs = np.std(observations, axis=1)
+    mean_actions = np.mean(actions, axis=1)
+    std_actions = np.std(actions, axis=1)
+    mean_deltas = np.mean(deltas, axis=1)
+    std_deltas = np.std(deltas, axis=1)
     """ YOUR CODE HERE """
-    return mean_obs, std_obs, mean_deltas, std_deltas, mean_action, std_action
+    return mean_obs, std_obs, mean_deltas, std_deltas, mean_actions, std_actions
 
 
 def plot_comparison(env, dyn_model):
@@ -110,7 +139,7 @@ def train(env,
     # model.
 
     random_controller = RandomController(env)
-
+    paths = sample(env, random_controller, num_paths=num_paths_random, horizon=env_horizon)
     """ YOUR CODE HERE """
 
 
@@ -122,8 +151,10 @@ def train(env,
     # for normalizing inputs and denormalizing outputs
     # from the dynamics network. 
     # 
-    normalization = """ YOUR CODE HERE """
-
+    mean_obs, std_obs, mean_deltas, std_deltas, mean_actions, std_actions = compute_normalization(paths)
+    normalization = {"mean_obs": mean_obs, "std_obs" : std_obs,
+                       "mean_deltas": mean_deltas, "std_deltas": std_deltas,
+                       "mean_actions": mean_actions, "std_actions": std_actions,}
 
     #========================================================
     # 
@@ -224,6 +255,14 @@ def main():
     # Make env
     if args.env_name is "HalfCheetah-v1":
         env = HalfCheetahEnvNew()
+        discrete = isinstance(env.action_space, gym.spaces.Discrete)
+        print("discrete = ", discrete)
+        ob_dim = env.observation_space.shape[0]
+        ac_dim = env.action_space.n if discrete else env.action_space.shape[0]
+
+        print("discrete = ", discrete)
+        print("ob_dim = ", ob_dim)
+        print("ac_dim = ", ac_dim)
         cost_fn = cheetah_cost_fn
     train(env=env, 
                  cost_fn=cost_fn,
