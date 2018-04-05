@@ -64,8 +64,8 @@ class NNDynamicsModel():
         deltas = np.concatenate([path['next_observations'] - path['observations'] for path in data])
 
         observations_norm = normalize(observations, normalization["mean_obs"], normalization["std_obs"])
-        actions_norm = normalize(actions, normalization["mean_deltas"], normalization["std_deltas"])
-        deltas_norm = normalize(deltas, normalization["mean_actions"], normalization["std_actions"])
+        deltas_norm = normalize(deltas, normalization["mean_deltas"], normalization["std_deltas"])
+        actions_norm = normalize(actions, normalization["mean_actions"], normalization["std_actions"])
         assert observations_norm.shape[0] == actions_norm.shape[0] == deltas_norm.shape[0]
         shuffled_indices = np.arange(observations.shape[0])
 
@@ -73,12 +73,15 @@ class NNDynamicsModel():
 
         for num_iter in range(self.iterations):
             np.random.shuffle(shuffled_indices)
+            if num_iter % 20 == 0:
+                print("we are in the fit fonction, num_iter = ", num_iter)
             for num_batch in range(int(np.ceil(observations.shape[0]/self.batch_size))):
-                current_batch_obs = observations_norm[shuffled_indices[num_batch:(num_batch+1)*self.batch_size]]
-                current_batch_acs = actions_norm[shuffled_indices[num_batch:(num_batch + 1) * self.batch_size]]
-                current_batch_deltas = deltas_norm[shuffled_indices[num_batch:(num_batch + 1) * self.batch_size]]
+                current_batch_obs = observations_norm[shuffled_indices[num_batch*self.batch_size:(num_batch+1)*self.batch_size]]
+                current_batch_deltas = deltas_norm[shuffled_indices[num_batch*self.batch_size:(num_batch + 1) * self.batch_size]]
+                current_batch_acs = actions_norm[shuffled_indices[num_batch*self.batch_size:(num_batch + 1) * self.batch_size]]
 
-
+                assert(len(current_batch_obs) == len(current_batch_deltas) == len(current_batch_acs))
+                # print("current batch size = ", len(current_batch_obs))
                 sess.run([self.update_op], feed_dict={self.obs_placeholder : current_batch_obs,
                                                       self.acs_placeholder : current_batch_acs,
                                                       self.target_placeholder : current_batch_deltas})

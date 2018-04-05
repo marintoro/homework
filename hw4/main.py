@@ -27,20 +27,27 @@ def sample(env,
         observations = []
         next_observations = []
         rewards = []
+        costs = []
         actions = []
         ob = env.reset()
+        print("we are in sample, path_num =", path_num)
         for num_step in range(horizon):
+            if path_num == 0 and render:
+                env.render()
+                time.sleep(0.01)
             observations.append(ob)
-            action = controller.get_action(ob)
+            cost, action = controller.get_action(ob)
             actions.append(action)
             ob, rew, done, _ = env.step(action)
             rewards.append(rew)
+            costs.append(cost)
             next_observations.append(ob)
 
         path = {"observations": np.array(observations),
                 "rewards": np.array(rewards),
                 "actions": np.array(actions),
-                "next_observations": np.array(next_observations)}
+                "next_observations": np.array(next_observations),
+                "costs" : np.array(costs)}
         paths.append(path)
 
     """ YOUR CODE HERE """
@@ -60,12 +67,12 @@ def compute_normalization(data):
     actions = np.concatenate([path['actions'] for path in data])
     deltas = np.concatenate([path['next_observations'] - path['observations'] for path in data])
 
-    mean_obs = np.mean(observations, axis=1)
-    std_obs = np.std(observations, axis=1)
-    mean_actions = np.mean(actions, axis=1)
-    std_actions = np.std(actions, axis=1)
-    mean_deltas = np.mean(deltas, axis=1)
-    std_deltas = np.std(deltas, axis=1)
+    mean_obs = np.mean(observations, axis=0)
+    std_obs = np.std(observations, axis=0)
+    mean_actions = np.mean(actions, axis=0)
+    std_actions = np.std(actions, axis=0)
+    mean_deltas = np.mean(deltas, axis=0)
+    std_deltas = np.std(deltas, axis=0)
     """ YOUR CODE HERE """
     return mean_obs, std_obs, mean_deltas, std_deltas, mean_actions, std_actions
 
@@ -139,7 +146,7 @@ def train(env,
     # model.
 
     random_controller = RandomController(env)
-    paths = sample(env, random_controller, num_paths=num_paths_random, horizon=env_horizon)
+    paths = sample(env, random_controller, num_paths=num_paths_random, horizon=env_horizon, render=render)
     """ YOUR CODE HERE """
 
 
@@ -194,8 +201,12 @@ def train(env,
     # 
     for itr in range(onpol_iters):
         """ YOUR CODE HERE """
+        dyn_model.fit(paths)
 
+        onpolicy_paths = sample(env, mpc_controller, num_paths=num_paths_onpol, horizon=env_horizon, render=render)
 
+        costs = np.concatenate([path['costs'] for path in onpolicy_paths])
+        rewards = np.concatenate([path['rewards'] for path in onpolicy_paths])
 
         # LOGGING
         # Statistics for performance of MPC policy using
@@ -207,12 +218,15 @@ def train(env,
         logz.log_tabular('MinimumCost', np.min(costs))
         logz.log_tabular('MaximumCost', np.max(costs))
         # In terms of true environment reward of your rolled out trajectory using the MPC controller
-        logz.log_tabular('AverageReturn', np.mean(returns))
-        logz.log_tabular('StdReturn', np.std(returns))
-        logz.log_tabular('MinimumReturn', np.min(returns))
-        logz.log_tabular('MaximumReturn', np.max(returns))
+        logz.log_tabular('AverageReturn', np.mean(rewards))
+        logz.log_tabular('StdReturn', np.std(rewards))
+        logz.log_tabular('MinimumReturn', np.min(rewards))
+        logz.log_tabular('MaximumReturn', np.max(rewards))
 
         logz.dump_tabular()
+
+        #Add the onpolicy_paths to the current dataset (i.e. paths)
+        paths = paths + onpolicy_paths
 
 def main():
 

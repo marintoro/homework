@@ -23,7 +23,7 @@ class RandomController(Controller):
 	def get_action(self, state):
 		""" YOUR CODE HERE """
 		""" Your code should randomly sample an action uniformly from the action space """
-		return np.random.uniform(low=-1, high=1, size=self.act_dim)
+		return (0, np.random.uniform(low=-1, high=1, size=self.act_dim))
 		pass
 
 
@@ -36,7 +36,8 @@ class MPCcontroller(Controller):
 				 cost_fn=None, 
 				 num_simulated_paths=10,
 				 ):
-		self.env = env
+		discrete = isinstance(env.action_space, gym.spaces.Discrete)
+		self.act_dim = env.action_space.n if discrete else env.action_space.shape[0]
 		self.dyn_model = dyn_model
 		self.horizon = horizon
 		self.cost_fn = cost_fn
@@ -61,13 +62,16 @@ class MPCcontroller(Controller):
 		states_trajectories = np.array(states_tab)
 		next_states_trajectories = np.array(next_states_tab)
 
-		best_score = -1000000000 #C est bien dégeu!!!!
-		best_action = None
-		for trajectory_number in range(actions_trajectories.shape[1]):
-			current_score = self.cost_fn(states_trajectories[:,trajectory_number,:], actions_trajectories[:,trajectory_number,:], next_states_trajectories[:,trajectory_number+1,:])
-			if current_score > best_score:
-				best_score = current_score
-				best_action = actions_trajectories[:,trajectory_number,:][0]
+		# states_trajectories = np.swapaxes(states_trajectories, 0, 1)
+		# actions_trajectories = np.swapaxes(actions_trajectories, 0, 1)
+		# next_states_trajectories = np.swapaxes(next_states_trajectories, 0, 1)
 
-		return best_action
+		trajectory_cost = trajectory_cost_fn(self.cost_fn, states_trajectories, actions_trajectories, next_states_trajectories)
+
+		best_trajectory_ind = np.argmin(trajectory_cost)
+		best_action = actions_trajectories[0,best_trajectory_ind,:]
+		best_state = states_trajectories[0,best_trajectory_ind,:]
+		best_next_state = next_states_trajectories[0,best_trajectory_ind,:]
+
+		return (self.cost_fn(best_state, best_action, best_next_state), best_action)
 
