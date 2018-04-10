@@ -23,6 +23,7 @@ def sample(env,
         Each path can have elements for observations, next_observations, rewards, returns, actions, etc.
     """
     paths = []
+    start_time = time.time()
     for path_num in range(num_paths):
         observations = []
         next_observations = []
@@ -31,6 +32,9 @@ def sample(env,
         actions = []
         ob = env.reset()
         print("we are in sample, path_num =", path_num)
+        duration = time.time() - start_time
+        print('Duration (%.3f sec)' % (duration))
+        start_time = time.time()
         for num_step in range(horizon):
             if path_num == 0 and render:
                 env.render()
