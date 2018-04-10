@@ -38,7 +38,7 @@ def sample(env,
         for num_step in range(horizon):
             if path_num == 0 and render:
                 env.render()
-                time.sleep(0.01)
+                time.sleep(0.0001)
             observations.append(ob)
             cost, action = controller.get_action(ob)
             actions.append(action)
@@ -208,9 +208,8 @@ def train(env,
         dyn_model.fit(paths)
 
         onpolicy_paths = sample(env, mpc_controller, num_paths=num_paths_onpol, horizon=env_horizon, render=render)
-
-        costs = np.concatenate([path['costs'] for path in onpolicy_paths])
-        rewards = np.concatenate([path['rewards'] for path in onpolicy_paths])
+        costs = np.array([np.sum(path['costs']) for path in onpolicy_paths])
+        rewards = np.array([np.sum(path['rewards']) for path in onpolicy_paths])
 
         # LOGGING
         # Statistics for performance of MPC policy using
